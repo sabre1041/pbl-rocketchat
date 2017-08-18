@@ -4,11 +4,55 @@ labels:
   template: rocketchat
 metadata:
   annotations:
-    description: Template to deploy the RocketChat platform to OpenShift
+    description: Template to build and deploy the RocketChat platform to OpenShift
     iconClass: icon-shadowman
     tags: quickstart,rocketchat
   name: rocketchat
 objects:
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: ${BASE_IMAGESTREAM}
+  spec:
+    tags:
+      - from:
+          kind: DockerImage
+          name: "${BASE_IMAGE_LOCATION}:${BASE_IMAGE_TAG}"
+        name: "${BASE_IMAGE_TAG}"
+- kind: ImageStream
+  apiVersion: v1
+  metadata:
+    name: "${APPLICATION_NAME}"
+    labels:
+      application: "${APPLICATION_NAME}"
+- kind: BuildConfig
+  apiVersion: v1
+  metadata:
+    name: "${APPLICATION_NAME}"
+    labels:
+      application: "${APPLICATION_NAME}"
+  spec:
+    source:
+      type: Git
+      git:
+        uri: "${SOURCE_REPOSITORY_URL}"
+        ref: "${SOURCE_REPOSITORY_REF}"
+      contextDir: "${CONTEXT_DIR}"
+    strategy:
+      type: Docker
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          namespace: "${IMAGE_STREAM_NAMESPACE}"
+          name: ${BASE_IMAGESTREAM}:${BASE_IMAGE_TAG}
+    output:
+      to:
+        kind: ImageStreamTag
+        name: "${APPLICATION_NAME}:${APPLICATION_DESTINATION_TAG}"
+    triggers:
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
 - apiVersion: v1
   kind: Route
   metadata:
@@ -97,7 +141,7 @@ objects:
               secretKeyRef:
                 key: ${MONGODB_REPLICA_NAME_SECRET_KEY}
                 name: "${MONGODB_SECRET_NAME}"
-          image: "${ROCKETCHAT_IMAGE_REGISTRY}:${ROCKETCHAT_IMAGE_TAG}"
+          image: " "
           name: ${APPLICATION_NAME}
           command: 
             - "/bin/bash"
@@ -128,6 +172,14 @@ objects:
               memory: ${MEMORY_REQUEST}
     triggers:
     - type: ConfigChange
+    - type: ImageChange
+      imageChangeParams:
+        automatic: true
+        containerNames:
+        - "${APPLICATION_NAME}"
+        from:
+          kind: ImageStreamTag
+          name: "${APPLICATION_NAME}:${APPLICATION_DESTINATION_TAG}"
   status: {}
 parameters:
 - description: The name assigned to the application.
@@ -135,19 +187,46 @@ parameters:
   name: APPLICATION_NAME
   required: true
   value: rocketchat
-- description: Hostname serving the application.
-  displayName: Application Hostname
-  name: HOSTNAME_HTTP
+- description: ImageStream used as the base for the new image.
+  displayName: Base ImageStream
+  name: BASE_IMAGESTREAM
+  value: node
   required: true
-- description: Location of the RocketChat Image
-  displayName: RocketChat Image
-  name: ROCKETCHAT_IMAGE_REGISTRY
-  value: registry.connect.redhat.com/rocketchat/rocketchat
+- description: Location of the Base Image.
+  displayName: Base Image Location
+  name: BASE_IMAGE_LOCATION
+  value: docker.io/node
   required: true
 - description: Name of the RocketChat tag that should be used.
   displayName: RocketChat Tag
-  name: ROCKETCHAT_IMAGE_TAG
-  value: "0.56.0-1"
+  name: BASE_IMAGE_TAG
+  value: "4-slim"
+  required: true
+- description: Destination Tag for the Newly Created Application.
+  displayName: Destination Tag
+  name: APPLICATION_DESTINATION_TAG
+  value: "latest"
+  required: true
+- description: Git source URI for application
+  name: SOURCE_REPOSITORY_URL
+  value: https://github.com/RocketChat/Docker.Official.Image.git
+  required: true
+- description: Git branch/tag reference
+  name: SOURCE_REPOSITORY_REF
+  value: master
+  required: false
+- description: Path within Git project to build; empty for root project directory.
+  name: CONTEXT_DIR
+  value: ''
+  required: false
+- description: Namespace in which the Java ImageStream is installed. This ImageStream
+    is normally installed in the openshift namespace. You should only need to modify
+    this if you've installed the ImageStreams in a different namespace/project.
+  name: IMAGE_STREAM_NAMESPACE
+  required: false
+- description: Hostname serving the application.
+  displayName: Application Hostname
+  name: HOSTNAME_HTTP
   required: true
 - description: Name of the MongoDB Service.
   displayName: MongoDB Service Name

@@ -70,6 +70,10 @@ parameters:
     description: "Maximum amount of memory the container can use."
     value: "512Mi"
 
+  - name: MEMORY_REQUESTS
+    displayName: "Memory Requests"
+    description: "Maximum amount of memory the container requests."
+    value: "512Mi"
 objects:
   - apiVersion: v1
     kind: Secret
@@ -123,6 +127,8 @@ objects:
     apiVersion: apps/v1beta1
     metadata:
       name: "${MONGODB_SERVICE_NAME}"
+      labels:
+        name: "${MONGODB_SERVICE_NAME}"
     spec:
       # pets get DNS/hostnames that follow the pattern: ${metadata.name}-NUM.${spec.serviceName}.default.svc.cluster.local
       serviceName: "${MONGODB_SERVICE_NAME}-internal"
@@ -177,6 +183,8 @@ objects:
               resources:
                 limits:
                   memory: "${MEMORY_LIMIT}"
+                requests:
+                  memory: "${MEMORY_REQUESTS}"
               readinessProbe:
                 exec:
                   command:
